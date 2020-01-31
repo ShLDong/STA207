@@ -1,0 +1,171 @@
+---
+title: 'Project 2: Project STAR'
+output:
+  pdf_document: default
+  html_document: default
+date: "January 5th 2020"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(knitr)
+library(dplyr)
+library(tidyr)
+library(car)
+```
+
+# 1 Descriptive Analysis
+```{r,echo=FALSE}
+load("/Users/lingyoupang/Downloads/STAR_Students.RData")
+mydata = x
+realdata = as.data.frame(cbind(mydata$g1schid,mydata$g1tchid,mydata$g2classtype,mydata$g1tmathss)) 
+realdata1 = realdata[complete.cases(realdata),]
+names(realdata1) = c('schoolid','teacherid','classsize','math')
+
+y = realdata1
+y$teacherid = factor(y$teacherid )
+y$schoolid = factor(y$schoolid)
+y$classsize = factor(y$classsize)
+
+finaldata = y %>%
+  group_by(teacherid, schoolid,classsize) %>%
+  summarise(mean_math=(mean(math)))
+
+
+
+```
+
+
+ 
+* First we cleaning the data by useing only teachers as unit and aggragate the math score by taking the average. For example, for the seame teacher, if the class size and school are the same, all the response share these three same factor merge into one observation by taking the average. Based on this transformed dataset, some descriptive statistics are conducted.
+
+
+Variable | Counting | Tpye | Level
+------------- | -------------|-------------|-------------|
+Math Score | 501|Numerical| NA|
+Class Size | 501|Catagorical| 3| 
+School | 501|Catagorical| 424| 
+
+
+
+* The most important part is to use a two way interaction plot to visualize group difference. As the above plot demonstrated, across three levels of Class Size, trace lines are not parallel, which indicates the existance of interaction between two factors. While the trend is similar, crossing happens but is realtively mild. For accuracy we still impose 2 way anova with interaction model.
+
+```{r, echo=FALSE}
+#interaction plot
+interaction.plot(finaldata$schoolid,finaldata$classsize,finaldata$mean_math, xlab = 'School Trace', ylab= 'Math Score', main='Interaction Plot of Class Size and School Type' )
+
+```
+
+# 2 Two-way ANOVA Model
+
+
+* Assumption 1: Normality: We assume the errors are normally distributed
+
+* Assumption 2: Equal Variance: we assume residuals have the sdame variance
+
+* Assumption 3: Independence : all the responses are independent
+
+
+We use the following two-way ANOVA model:
+
+$$Y_{ijk}=\mu+\alpha_i+\beta_j+\gamma_{ij}+\epsilon_{ijk},$$
+
+in which $\epsilon_{ijk}\sim N(0,\sigma^2)$. $Y_{ijk}$ are responses $i$ is the index of school id, while $j$ is the index of different class sizes. $\alpha_i$ and $\beta_j$ represent the factor level effect and $\gamma_{ij}$ represents the interaction effect.
+
+
+# 3 Justification for Two-way ANOVA Model
+
+* Firstly from the perspective of experiment design, we have 2 levels of randomization: the students and teacher assignments, which assures the independence of response even using teacher as unit. We aim at the difference among different class size, and there are three groups. As a result, ANOVA model should be used to analyze the differences from more than 2 populations.
+
+* Secondly we are interested in the effect of class size while the school is another factor blocking our response. The difference among schools also have an impact on students' performance. Two-way ANOVA Model allows us the modeling the variance from both factors and we could isolate the true effect of interest.
+
+* Thirdly by interaction plot we can also see that there are minor interactions existing between our 2 factors so Two-way ANOVA Model with interaction term is indeed needed in this situation.
+
+
+
+
+# 4 Modeling Fitting and Some result
+
+Here we fit the imposed model and run it in R. We display a few sample results for demonstration:
+
+
+```{r}
+
+model = aov(mean_math~schoolid+classsize+schoolid:classsize,data = finaldata)
+
+finaldata$fitted_value<- predict(model)   # Save the predicted values
+finaldata$residuals <- residuals(model)
+
+kable(finaldata[1:5,], caption = 'Fitted Data Demo')
+
+```
+
+
+# 5 Model Diagnostic Analysis
+
+The model diagnostic analysis is conducted to ensure that the two way ANOVA model is reliable. We use residual QQ plot to check normality and we conduct Levene's Test to check the equal variance
+
+## 1 Normality 
+
+```{r}
+#1 checking normality
+qqnorm(finaldata$residuals, pch = 1, frame = FALSE,main= 'Q-Q Plot for residual')
+qqline(finaldata$residuals, col = "steelblue", lwd = 2)
+hist(finaldata$residuals,main='Histogram for residuals',xlab = 'Residuals')
+
+```
+
+* By drawing the QQ plot and histogram,  we can see the the distriubution is approximately normal. I do notice there is a higher mass od data points centered around the mean, while it does not violate the overall distribution. Normality holds up.
+
+## 2 Equal variance 
+
+```{r}
+plot(finaldata$fitted_value,finaldata$residuals,main='residual plot',xlab = 'Fitted Math Score',ylab = 'Residuals')
+abline(0,0)
+```
+
+* By drawing the residual plot we can see the variance is approximately equal and no violation to our assumption. Equal variance holds up.
+
+
+# 6 Hypothesis Testing 
+
+The hypothesis testing problem can be stated as following:
+
+$H_{1,0}: \alpha_i=0$ for all $i$, vs $H_{1,a}: \alpha_i\neq 0$ for some $i$;
+
+$H_{2,0}: \beta_j=0$ for all $j$, vs $H_{2,a}: \beta_j\neq 0$ for some $j$.
+
+$H_{3,0}: \gamma_{ij}=0$ for all $i,j$, vs $H_{3,a}:  \gamma_{ij}=0\neq 0$ for some $ i,j$.
+
+
+
+$$
+\begin{array}{cccc}
+\hline \text { Hypothesis } & {\text{F Statistics}} & {\text{P value}} & {\text{Decision}} \\
+\hline \text { H1(for class size efeect) } & {4.59} & {2e-16} & {reject} \\
+\text { H2 (for school effect)}  & {7.738} & {0.00053} & {reject} \\
+\text { H3 (for interaction effect)} & {0.654} & {0.997} & {\text{fail to reject}} \\
+\hline
+\end{array}
+$$
+
+As we conduct F test here, we reject that there is no facter effect of class size while we fail to reject that there is no interaction effect. So we conclude different class size indeed has am impact on students's math score.
+
+# 7 Causal Inference
+
+* Assumption 1: Stable Unit Treatment Value Assumption (SUTVA)
+
+This assumption requires that the assignment of treatment does not affect the potential outcomes of others. In this data set, it is crucial to determine if the assignment of teacher into different class size is randomized. Because of this is not an experiment but a project collecting existing information, we can not know exactly how the assignment is completed and if it is randomized. So this first assuption does not hold up.
+
+*Assumption 2: Ignorability.
+
+Our second assumption requires that the assignment of treatment(class size) is independent of the potential outcome. For this data set, the assignment of different class size is indeed independent from the math score measured using teacher as unit. While we can not be sure that the second level: school is independent of math score, since different school tend to have various education quality, exam difficulty and even exam content which are all related to math score. From the perspective of experiment design, we are still not sure about the validity of ignorability.
+
+
+
+# 8 Connection to Project 1 and Discussion
+
+In the above analysis, the two null hypotheses in ANOVA model are both rejected with a high confidence level. This results indicates that the average score is related to both class size and school.
+
+This project is really different from project 1. Firstly, we have two level of randomization on both students and teachers.First project used unaggragated data while we aggragate by taking the average for the second project. Secondly for One-Way Anova model we directly grouped the population by different class size. While for the second project after the first level group, we further block the population by the factor of school so that we can isolate the variance due to the class size more accurately. 
+
