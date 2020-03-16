@@ -1,0 +1,407 @@
+---
+title: "Final Report: Logistic Regression Model in Analyzing Bank Marketing Data"
+output:
+  pdf_document: 
+    latex_engine: xelatex
+  html_document: default
+---
+
+```{r, include=FALSE}
+options(tinytex.verbose = TRUE)
+```
+Group 14: Lingyou Pang, Puning Zhao, Shuangle Dong, Limin Chen
+
+Github: https://github.com/ShLDong/STA207
+
+# 1. Introduction
+
+## 1.1 Background
+
+The data set used is collected UCI machine learning repository. It gives information about direct marketing campaigns of a Portuguese banking institution. The most important part is to access if the product (bank term deposit) would be ('yes') or would not be('no') subscribed.The following categories of information are included: Consumer data,Campaign activities, Social and economic environment data, Outcome.
+
+## 1.2 Choice of the Data Set
+
+The data set we picked here to conduct the analysis is "bank.csv", for 2 reasons. Firstly, the this data set is smaller than the original one, which greatly improve the efficiency. Secondly, this set is randomly selected from 3 earlier dataset. It slightly ameliorate the problem of unbalanced response by randomization. 
+
+## 1.3 Statistical questions of interest and Analysis Plan
+
+The goal here is to predict if a consumer will continue to subscribe or not. The response here is binary and to answer this question the approperate statistical model should be used.The model we are using here is logistic regression model.We use logistic regression model because of the following reasons. Firstly, the data is roughly linear separable, therefore linear models have good performance. Besides, before the calculation, we have removed any outliers that may have a negative effect on the accuracy of our model. Moreover, consider that the dimension is high, we expect that nonparametric models perform worse due to a common phenomenon called the curse of dimensionality. Based on the above analysis, the logistic regression model is suitable for our analysis.
+
+# 2. Statistical Analysis
+```{r include=FALSE}
+
+data2 = read.csv('C:/Users/Shuangle/Downloads/bank/bank.csv',sep=';')
+data3 = data2[which(data2$y=='yes'),]
+n = nrow(data3)
+data4 = data2[which(data2$y=='no'),]
+data5 = data4[sample(nrow(data4),n),]
+data2 = rbind(data3,data5)
+model = glm(y~., data = data2, family = binomial())
+
+```
+
+
+## 2.1 Descriptive  Analysis
+
+The purpose of this project is to fully explore the needs of customers, summarize the user profiles, and provide constructive suggestions for the development of marketing activities, so as to truly promote the development of banking business. 
+
+The marketing scenario of this dataset is to recommend a term deposit business to customers, and the promotion method is limited by telephone promotion, so in the description we will be more inclined to target our expected group.
+There are 4521 data and 17 variables, where ***y*** is the dependent variable and ***y*** = 'yes' represents marketing success. From the describe function we could summarize the following information: 
+
+- Blue collar, management and technician occupations are the most common among customers(Fig 1.3);
+
+- The majority of customers receiving products are **married**, indicating that these customers have more demand than single customers(Fig 1.2);
+
+- The average **age** of customers is about 41 years old. The oldest is 87 and the youngest is 19. For all  clients, the first quartile of age is 33 and the third quartile is 49, indicating that half of the customers are in the 33-49 range. It means the majority of customers receiving products are middle-aged（Fig 1.3).
+
+```{R include=FALSE}
+#library('Hmisc')
+#describe(data2) #Results shown in appendix
+```
+
+```{R include=FALSE}
+multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
+  library(grid)
+
+  # Make a list from the ... arguments and plotlist
+  plots <- c(list(...), plotlist)
+
+  numPlots = length(plots)
+
+  # If layout is NULL, then use 'cols' to determine layout
+  if (is.null(layout)) {
+    # Make the panel
+    # ncol: Number of columns of plots
+    # nrow: Number of rows needed, calculated from # of cols
+    layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
+                    ncol = cols, nrow = ceiling(numPlots/cols))
+  }
+
+ if (numPlots==1) {
+    print(plots[[1]])
+
+  } else {
+    # Set up the page
+    grid.newpage()
+    pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
+
+    # Make each plot, in the correct location
+    for (i in 1:numPlots) {
+      # Get the i,j matrix positions of the regions that contain this subplot
+      matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
+
+      print(plots[[i]], vp = viewport(layout.pos.row = matchidx$row,
+                                      layout.pos.col = matchidx$col))
+    }
+  }
+}
+```
+
+```{R echo=FALSE}
+library(ggplot2)
+p1 <- ggplot(data2, aes(x=y, y=age,color=y)) + 
+  geom_boxplot()+
+  scale_color_manual(values=c("#999999", "#E69F00"))
+p_age <- p1 + theme(legend.position="right", panel.spacing =unit(c(0,0,0,0), "cm")) +
+    coord_flip()
+
+p_job <- ggplot(data2)+geom_bar(aes(x=job, fill=job)) + theme(axis.text  = element_blank(),legend.position = 'bottom')
+
+p_marital <- ggplot(data2)+geom_bar(aes(x=factor(1), fill=marital)) +
+  coord_polar(theta = 'y') + theme(legend.position="right", panel.spacing =unit(c(0,0,0,0), "cm"))
+
+layout1 <- matrix(c(1, 1, 1, 1, 2, 2, 2, rep(3, 7)), nrow = 2, byrow = TRUE)
+multiplot(plotlist = list(p_job, p_marital, p_age), layout = layout1)
+```
+Figure 1: Top Left(1.1), Bar plot of 'job'; Top Right(1.2), Pie chart of 'marital'; Bottom(1.3): Boxplot of 'Age'.
+
+
+- The average customer **balance** is 1423, but the standard deviation is large, indicating that the distribution of this data is scattered.
+
+- The call duration ranges from 4 to 3025 seconds (almost an hour). Is it the last call time or the accumulated call time? Is it pure talk time or does it include waiting time? It's not described clearly. However, it is certain that the longer the call time, the greater the potential of the customer, and the corresponding deposit will be more.
+
+- The number of contacts performed during this campaign ranged from 1 to 50 times. The more the corresponding number of contacts, the more likely that the customer participated in the previous event.
+
+*You could check the Appendix 1 for complete output of the describe function.
+
+```{R echo=FALSE}
+p_default = ggplot(data2)+geom_boxplot(aes(x=default,y=balance,fill=y)) + coord_flip()
+p_house = ggplot(data2)+geom_point(aes(x=housing,y=balance, colour = housing),position = 'jitter' ) + coord_flip()
+p_loan = ggplot(data2)+geom_point(aes(x=loan,y=balance, colour = loan),position = 'jitter' )+coord_flip()
+
+layout2 <- matrix(c(rep(1,6), rep(2,3), rep(3,3)), nrow = 2, byrow = TRUE)
+multiplot(plotlist = list(p_default, p_house, p_loan), layout = layout2)
+
+```
+Figure 2: Top: Boxolot of default and balance grouped by whether the client has a term deposite or not. Bottom: Scatter plot of the relationship between balance and housing or personal loan.
+
+- Significantly low balance of persons with default records, indicating that their financial situation is indeed not good;
+- The existence of home loans and personal loans will directly affect the balance, and those without home loans and personal loans will have more surpluses.
+
+Besides, we found that there seems to be no significant deviation in the earnings of people with different educational levels; there is no correlation between marital status and earnings, because the distribution of the surplus segments is relatively similar for divorced, single, and married persons.
+
+- The existence of home loans and personal loans will directly affect the balance, and those without home loans and personal loans will have more surpluses.
+
+### EDA Summary
+
+- Profiling a typically consumer: Married, Age around 41,No loan, Techinician, blue collar or management
+
+- Response variable is unbalanced : 1-to-0 ratio is about $\frac{1}{8}$. Highly problematic for prediction model. Solution: Randomly sample the equal number of yes-response entries to balance the ratio to $\frac{1}{1}$
+
+- Slightly Correlated Predictors: Even among numerical predictors there are slightly correlated but not severe. For the purpose of accurate prediction we conduct step-wise AIC to do model selection.(Results demonstrated in Appendix 2)
+
+
+## 2.2 Analysis Using Logistic Regression
+
+### Logistic Regression Defination
+The logistic regression model is shown in the following equation:
+
+$$\ln\frac{P(Y=1|x)}{1-P(Y=1|x)}=\beta_0+\beta_1x_1+\ldots+\beta_p x_p,$$
+in which $x_i$, $i=1,\ldots,p$ are $p$ independent variables. Some variables are actually categorical variables. For these variables, one hot encoding is conducted to convert the categorical variables to numerical, based on their alphabet sizes.
+
+
+### Assumptions
+
+1, Linearity: linear relationship between predictors and the logit of the outcome.
+
+2, No influential points and outliers: This assumption requires that the outliers are all elimnated cince the performance of the model will be effected
+
+3, No Multicollinearity inside the data: the predictors should be uncorrelated.
+
+### Model fitting and some results
+
+```{r,echo=FALSE,include=FALSE}
+library(MASS)
+model = stepAIC(model,trace= FALSE)
+summary(model)
+```
+
+
+The following table shows numerical part of the fitting result:
+
+
+|Predictor|Estimate Value |Std. Error| Pr(> z) |
+|----------|----------|---------|---------|
+|Intercept     | 3.212e-01 | 6.384e-01   | 0.614859 |
+|age              |-1.663e-02 | 1.036e-02  | 0.108278 |
+|jobblue-collar   |-1.096e+00 | 3.755e-01  | 0.003523 |
+|jobentrepreneur  |-1.283e+00 | 5.574e-01  |0.021367 |
+|jobservices      |-1.227e+00 | 4.462e-01  | 0.005969 |
+|jobunemployed    |-1.687e+00 | 6.477e-01  | 0.009183|
+|housingyes       |-5.878e-01 | 2.113e-01  | 0.005408 |
+|loanyes          |-1.305e+00 | 3.334e-01  | 9.06e-05 |
+|contactunknown   |-1.904e+00 | 3.247e-01  | 4.53e-09 |
+|duration         | 6.733e-03  |4.771e-04 |  < 2e-16 |
+|campaign         |-1.062e-01  |4.984e-02 | 0.033083 |
+|poutcomeother     |1.006e+00 | 4.781e-01 |0.035284 |
+|poutcomesuccess   |3.395e+00  |7.074e-01 | 1.59e-06 |
+|poutcomeunknown  |-2.901e-01  |2.814e-01  | 0.302676|
+
+From the above table, we observe that after AIC select most of predictors remain significant,which indicate the logistics model fit well while how goo the fit is require further investigation.
+
+### Evaluation of the  performance
+
+```{r include=FALSE}
+#deviance residual and pearson residual
+res.P = residuals(model,type = 'pearson')
+res.D = residuals(model,type ='deviance')
+res = as.data.frame(cbind(res.P,res.D))
+
+# Box plot 
+bp1 = ggplot(res)+geom_boxplot(aes(x=factor(1),y=res.D))+theme_bw()+xlab('Pearson')
+bp2 = ggplot(res)+geom_boxplot(aes(x=factor(1),y=res.P))+theme_bw()+xlab('Deviance')
+
+# Residual plot
+rp = ggplot(model,aes(x=.fitted,y=.resid))+geom_point()+ geom_hline(yintercept=0)+ggtitle('Residual Plot')+theme_bw()
+
+layout3 <- matrix(c(1,2,3,3,3,3,1,2,3,3,3,3), nrow = 2, byrow = TRUE)
+multiplot(plotlist = list(bp1,bp2,rp), layout = layout3)
+```
+![](C:/Users/Shuangle/Davis/2020_Winter/STA 207/project 4/cook.png)
+Figure 3: Left(3.1): Boxplots of two residuals and the Fitted value vs residual plot. Right(3.2): Leverage and Cook's distance.
+
+From the box-plot(Fig 3.1) we see that two kinds of residuals have similar distribution.While residual plot shows that Pearson's residual has more outliers, which indicates a sign of lack-of-fit. Further test is needed here.   
+
+So we further do RUNS test to ditermine the performance.
+
+```
+Standardized Runs Statistic = -32.234, p-value < 2.2e-16
+```
+The null here suppose this is no lack-of-fit, while the P-value is small we  reject the null, there is no evidence suggesting that the model suffers from lack-of-fit. Logistic model works well in our data set.
+
+
+
+```{r,include=FALSE}
+#RUNS Test
+library(lawstat)
+runs.test(y=res.D,plot.it = F)
+```
+
+
+```{r,include=FALSE}
+#ROC
+library(ROCR)
+library(gplots)
+p <- predict(model,type="response")
+pr <- prediction(p, data2$y)
+prf <- performance(pr, measure = "tpr", x.measure = "fpr")
+plot(prf)
+
+#auc <- performance(pr, measure = "auc")
+#auc <- auc@y.values[[1]]
+#auc
+```
+
+
+## 2.3 Model Diagnostic Analysis
+
+### Linrearity checking
+
+Here we only check the linear relationship between the continous predictors and the response, it shows that most of predictos indeed is linear on the response while campaign, pdays and previous shows a quadratic pattern, which is one of the potiential reason for lack-of-fit. While even among those who demonstrate a slightly  non-linear pattern, the trend is still monotone. So the use of linear model is still justified.
+
+```{r,include=F}
+library(tidyverse)
+library(broom)
+```
+
+```{r echo=FALSE, fig.height=3.2}
+
+probabilities <- predict(model, type = "response")
+predicted.classes <- ifelse(probabilities > 0.5, "yes", "no")
+# Select only numeric predictors
+mydata <- data2 %>%
+  dplyr::select_if(is.numeric) 
+predictors <- colnames(mydata)
+# Bind the logit and tidying the data for plot
+mydata <- mydata %>%
+  mutate(logit = log(probabilities/(1-probabilities))) %>%
+  gather(key = "predictors", value = "predictor.value", -logit)
+ggplot(mydata, aes(logit, predictor.value))+
+  geom_point(size = 0.5, alpha = 0.5) +
+  geom_smooth(method = "loess") + 
+  theme_bw() + 
+  facet_wrap(~predictors, nrow = 2, scales = "free_y")
+```
+
+
+### Influential point check
+
+Here we check for outliers by leverage points plot and Cook's distance and indeed there are evident influential points and the removal method is included in the coding to improve the goodness-of-fit(Fig 3.2).
+
+```{r fig.align="center", fig.height=3.2, include=FALSE}
+
+par(mfrow=c(1,2))
+#leverage point
+leverage = hatvalues(model)
+plot(names(leverage),leverage,xlab='index',type='h')
+abline(h= 2*length(model$coefficients)/nrow(data2),col=2,lwd =2,lty=2)
+
+#cook's distance
+cooks = cooks.distance(model)
+plot(cooks,main='Cooks Distance')
+
+#remove
+w <- abs(rstudent(model)) < 3 & abs(cooks.distance(model)) < 8/nrow(model$model)
+model1 <- update(model, weights=as.numeric(w))
+
+```
+
+
+### Multicollinearity Check
+
+Here we use VIF to check for multicollinearity:
+
+|      | education | housing | loan | contact | day  | month | duration | campaign | poutcomr | marital |
+|------|-----------|---------|------|---------|------|-------|----------|----------|----------|---------|
+| GVIF | 1.36      | 1.12    | 1.05 | 1.90    | 1.36 | 3.39  | 1.12     | 1.15     | 1.13     | 1.08    |
+
+If GVIF is larger than 5 we consider it as problematic and the result shows that after proper model selection, multicollinearity has indeed been removed so the assumption holds up.
+
+```{r,include=F}
+#VIF
+#greater than 5 is bad
+car::vif(model)
+library(MASS)
+model2 = stepAIC(model,trace= FALSE)
+car::vif(model2)
+```
+
+## 2.4 Another prediction model
+
+We use Support Vector Machine as an alternative. SVM is expected to work here, since it also provides linear separation hyperplane, and it is suitable for processing high dimensional data. SVM model minimizes the following loss function:
+
+$$L=\sum_{i=1}^N \max\{0,1-y_iw^Tx_i \},$$
+
+in which $w$ is a $(p+1)$ dimensional vector that represents the weight.
+
+Now we compare the result of logistic regression and SVM. The Receiver Operating Characteristics (ROC) curves are plotted as following:
+```{r include=FALSE}
+library('InformationValue')
+data2$y<-as.numeric(data2$y)-1
+X <- subset(data2, select = -c(y))
+pred_lm <- predict(model, X, type="response") 
+misClassError(data2$y,pred_lm, threshold = 0.5)
+library('e1071')
+svm_model <- svm(y ~ ., data=data2)
+summary(svm_model)
+pred_svm<-predict(svm_model,X)
+```
+
+```{r fig.align="center", include=FALSE, out.width="50%"}
+library(pROC)
+preLog = predict(model,type = 'response')
+LogRoc <- roc(data2$y,preLog)
+SVMRoc <- roc(data2$y,pred_svm)
+plot(LogRoc, print.auc=TRUE, auc.polygon=TRUE, grid=c(0.1, 0.2),
+     grid.col=c("green", "red"), max.auc.polygon=TRUE,
+     auc.polygon.col="skyblue", print.thres=TRUE)
+plot.roc(SVMRoc,add=T,col="red", print.auc=TRUE,print.auc.x=0.3,print.auc.y=0.3)
+```
+![Caption for the picture.](C:/Users/Shuangle/Davis/2020_Winter/STA 207/project 4/ROC.png)
+From these figures, we observe that the ROC curves of these two models are approximately the same, and the Area Under Curve (AUC) value are both around 0.9. The result indicates that both logistic regression model and the SVM model has good performance for the classification of bank data.
+
+
+# 3. Conclusion and Suggestion
+From the overall prediction accuracy of the model, the logistic regression model and the SVM model show similar performance. Since we used the data set 'bank.cvs' which is a sample from raw dara, resampling data before modeling could lead to a better result which would reduce the bias of model prediction effects due to sample imbalance.
+Several stategies could conclude as following: If the time deposit business and the housing loan are negatively correlated, it can be considered that it is relatively difficult to open a time deposit business with a home loan. At the same time, the overall surplus of people with a home loan will be worse than those without a home loan. So next time the marketing center can be targeted at people with good earnings and no home loans. Judging from the marketing results, it seems that groups under 20 or over 60 are more likely to succeed in marketing, so they can be considered as the key marketing target. Students and retirees are more likely to have time deposits and succeed in marketing. It is not easy for blue-collars, entrepreneurs, service providers, and technicians to sell successfully. Sales to this type of people should be avoided as much as possible.
+For more accurate subsequent simulations, decision trees and neural network algorithms can be used for further optimization.
+
+# 4. Question Collected From Presentation 
+
+## Question 1: Why use AIC method instead of other model selection methods?
+
+- The goal here is to predict if future consumer is going to subscribe or not, so AIC should be used for selecting a model intended for prediction. AIC generally will select a larger model which keeps more predictors and the true model may not be the best model for future prediction.Based on this fact and our goal we choose AIC method here as our only model selection method. 
+
+## Question 2: Why we didn't check the SVM assumption of linear separable. 
+
+- The Area Under Curve (AUC) value of SVM model is around 0.9 which means that SVM model has pretty good performance in classification of bank data and demonstrated high accuracy. The visualization of hyperplane in high dimension is impossibile and the data here has the same problem. From this perspective of good fitting, we assume the assumption of linear separable holds up. 
+
+
+
+# 5. Reference
+[1][Moro et al., 2014] S. Moro, P. Cortez and P. Rita. A Data-Driven Approach to Predict the Success of Bank Telemarketing. Decision Support Systems, Elsevier, 62:22-31, June 2014
+
+[2]Decision tree: http://f.dataguru.cn/thread-657436-1-1.html
+
+[3][To Explain or to Predict] Galit Shmueli  (2010)
+
+# Appendix 1
+```{R include=FALSE}
+library('Hmisc')
+```
+```{R}
+describe(data2)
+```
+# Appendix 2
+#Correlation plot
+```{r}
+library(corrplot)
+library("Hmisc")
+
+nn = names(dplyr::select_if(data2,is.numeric))
+datann = data2[,nn]
+res <- cor(datann)
+library(corrplot)
+corrplot(res)
+
+```
